@@ -1,0 +1,247 @@
+﻿@model List<Chat_App.Controllers.UserWithLastMessage>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+<div class="whatsapp-container">
+    <!-- Header -->
+    <div class="wa-header">
+        <div class="header-content">
+            <i class="fas fa-comments"></i>
+            <span>Chats</span>
+        </div>
+        <div class="header-actions" style="display: flex; gap: 15px; align-items: center;">
+            <i class="fas fa-search" onclick="toggleSearch()" style="cursor: pointer;"></i>
+            <a href="/Account/Logout" style="color: white; cursor: pointer; text-decoration: none;"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </div>
+
+    <!-- Search Bar (Hidden by default) -->
+    <div class="search-container" id="searchContainer" style="display: none;">
+        <input type="text" id="searchInput" placeholder="Search users..." onkeyup="filterUsers()" />
+    </div>
+
+    <!-- User List -->
+    <div class="user-list">
+        @foreach (var item in Model)
+        {
+            <a href="/Chat/Chat/@item.User.Id" class="user-item">
+                <div class="user-avatar">
+                    <i class="fas fa-user"></i>
+                    @if (item.User.IsOnline)
+                    {
+                        <span class="online-indicator"></span>
+                    }
+                </div>
+                <div class="user-details">
+                    <div class="user-name">
+                        @item.User.username
+                        @if (item.User.IsOnline)
+                        {
+                            <span class="online-dot"></span>
+                        }
+                    </div>
+                    <div class="user-last-msg">@(string.IsNullOrEmpty(item.LastMessage) ? "Click to start chatting" : item.LastMessage)</div>
+                </div>
+                <div class="user-meta">
+                    <div class="msg-time">@(item.LastMessageTime?.ToString("HH:mm"))</div>
+                </div>
+            </a>
+        }
+    </div>
+</div>
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: #e5ddd5;
+    }
+
+    .whatsapp-container {
+        max-width: 900px;
+        margin: 0 auto;
+        height: 100vh;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Header */
+    .wa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background: #075e54;
+        color: white;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        font-weight: 500;
+    }
+
+    .header-actions {
+        font-size: 18px;
+    }
+
+    /* Search */
+    .search-container {
+        padding: 10px;
+        background: #f6f6f6;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .search-container input {
+        width: 100%;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 20px;
+        outline: none;
+        font-size: 14px;
+        background: white;
+    }
+
+    /* User List */
+    .user-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .user-item {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        border-bottom: 1px solid #f0f0f0;
+        text-decoration: none;
+        color: inherit;
+        transition: background 0.2s;
+        gap: 15px;
+    }
+
+    .user-item:hover {
+        background: #f5f5f5;
+    }
+
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #059b8e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 22px;
+        flex-shrink: 0;
+    }
+
+    .user-details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .user-name {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 4px;
+    }
+
+    .user-last-msg {
+        font-size: 13px;
+        color: #999;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .user-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 5px;
+    }
+
+    .msg-time {
+        font-size: 12px;
+        color: #999;
+    }
+
+    /* Scrollbar */
+    .user-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .user-list::-webkit-scrollbar-track {
+        background: #f0f0f0;
+    }
+
+    .user-list::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 3px;
+    }
+
+    .user-list::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    /* Online Indicator */
+    .online-indicator {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 12px;
+        height: 12px;
+        background: #25D366;
+        border-radius: 50%;
+        border: 2px solid white;
+    }
+
+    .user-avatar {
+        position: relative;
+    }
+
+    .online-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #25D366;
+        border-radius: 50%;
+        margin-left: 5px;
+    }
+</style>
+
+<script>
+    function toggleSearch() {
+        const searchContainer = document.getElementById('searchContainer');
+        searchContainer.style.display = searchContainer.style.display === 'none' ? 'block' : 'none';
+        if (searchContainer.style.display === 'block') {
+            document.getElementById('searchInput').focus();
+        }
+    }
+
+    function filterUsers() {
+        const searchValue = document.getElementById('searchInput').value.toLowerCase();
+        const userItems = document.querySelectorAll('.user-item');
+
+        userItems.forEach(item => {
+            const userName = item.querySelector('.user-name').textContent.toLowerCase();
+            if (userName.includes(searchValue)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+</script>
