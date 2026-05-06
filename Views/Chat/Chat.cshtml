@@ -1,0 +1,909 @@
+﻿<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+<div class="chat-container">
+    <!-- Header -->
+    <div class="chat-header">
+        <div class="header-left">
+            <i class="fas fa-arrow-left back-btn" onclick="history.back()"></i>
+            <div class="user-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="user-info">
+                <div class="user-name">Chat with @ViewBag.ReceiverName</div>
+                <div class="user-status" id="userStatus">
+                    @if (ViewBag.IsOnline == true)
+                    {
+                        <span style="color: #25D366;">Online</span>
+                    }
+                    else if (ViewBag.LastSeen != null)
+                    {
+                        <span>last seen @ViewBag.LastSeen.ToString("HH:mm")</span>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <i class="fas fa-video"></i>
+            <i class="fas fa-phone"></i>
+            <i class="fas fa-ellipsis-v"></i>
+        </div>
+    </div>
+
+    <!-- Messages Area -->
+    <div class="chat-messages" id="messagesContainer">
+        <div class="date-divider">Today</div>
+        <ul id="messages"></ul>
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-container">
+        <i class="fas fa-smile emoji-btn"></i>
+        <i class="fas fa-paperclip attach-btn" onclick="toggleFileMenu(event)"></i>
+        <input type="text" id="txtMessage" placeholder="Type a message..." onkeypress="handleKeyPress(event)" />
+        <button class="send-btn" onclick="sendMessage()">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </div>
+
+    <!-- File Upload Menu -->
+    <div class="file-menu" id="fileMenu">
+        <div class="file-menu-item" onclick="selectFile('image')">
+            <i class="fas fa-image"></i> Images
+        </div>
+        <div class="file-menu-item" onclick="selectFile('video')">
+            <i class="fas fa-video"></i> Videos
+        </div>
+        <div class="file-menu-item" onclick="selectFile('document')">
+            <i class="fas fa-file-alt"></i> Documents
+        </div>
+    </div>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="uploadFile(this, 'image')" />
+    <input type="file" id="videoInput" accept="video/*" style="display:none" onchange="uploadFile(this, 'video')" />
+    <input type="file" id="documentInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none" onchange="uploadFile(this, 'document')" />
+</div>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #e5ddd5;
+        }
+
+        .message-status {
+            font-size: 12px;
+            margin-left: 5px;
+            display: inline-block;
+        }
+
+        .tick-sent { color: #999; }
+        .tick-delivered { color: #999; }
+        .tick-read { color: #4FC3F7; }
+
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        max-width: 900px;
+        margin: 0 auto;
+        background: #e5ddd5;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    /* Header Styles */
+    .chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: #075e54;
+        color: white;
+        min-height: 60px;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .back-btn {
+        cursor: pointer;
+        font-size: 18px;
+    }
+
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #059b8e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    .user-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .user-name {
+        font-size: 16px;
+        font-weight: 500;
+    }
+
+    .user-status {
+        font-size: 12px;
+        opacity: 0.8;
+    }
+
+    .header-right {
+        display: flex;
+        gap: 20px;
+        font-size: 18px;
+    }
+
+    .header-right i {
+        cursor: pointer;
+    }
+
+    /* Messages Area */
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0tUO7QAAABh0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAIcSURBVDiNpdI9S2NRFMbxz7lJz1u4YOTgSExQFLRIDEQkGhIhISPBoKAgMLwCQSCQgEiQIBBIQEBAQJAQURM1jRolBJUiWnQkSaeXUJAeGem9O+8Rf9Rb7+0eGOjN9J3feX7n3GHgmYmCBwYGDu7evXs/KysrS2h8fNy2trbe1tZ2mcvlWkKhkA0Gg2w0GmUikZDFYjFZKpUsGAyKQqGQLZVKsgDk83lZLBaVWQiy2ayYllQqJcNkMslMJpPJlctl2WQyibIsA8BkMskAUCgUZKfTkT0eDwNgMBjIq6ur8+zs7GwvLS2t0ul0qtvtVqvVqlarqVarKpfLqtfrAhCQy+Wk0WiY0WgUAEwmkzIej8s6nU5Zq9VkqVSKg8GgLBKJxHw+X1YqlWQACgQCYjweFwPC4bA4GAzEaDQq6/V6srm5uXf7+/v/9fz8/Kx6vZ5sNBpib29PDAYDNTIGg4E6xna7LQOQzWZlq9Uqg4AARqNRWVdXl2UymdQdO3Yoi8ViTKfTigCUSiVZuVxW0f8lEglpt9vVTCajjEQiMgDK5bIql8sSgGQyKQOQzWZlq9UqA0C1WpU1NzfL4XBY1t/fr8p+v69YLJZ1cHCgtrS0KMPhsKzRaMh6vZ4MQLFYlAOwtbWlAmDg1h6PpxKLxWQADKNcLsuGw6EKgIAEQFcqlWQej0cBwEqlIgNAKpWSc7mcyufzMgDFYlE2Go0qAAYymYwMgMFgIKM4lUolGQ0GgyJhMpmUAUC5XJYBSKfTMgAWiwUZRblclgGIRqMyAIVCQRnFwcGBbDQaVQAMZDKZMgCFQkEZCQChUEgGQK1WU0ZRKBQkAMRisTKEcrm8x+PxZACUSiVlCA8ePJA1Go0KwUqlIgOgVqspI3jw4IEsAIVCgbLJZJIBSCaTygBCoZAyglQqJQOgWCxSBhAIBGQAUiqVMgCFQkEZQjQalwGQzWZlAKLRqAxBpVJRf9RqNWWECxcuSACoVCrKAA4ODmQAYrGYDEA2m5UBcLvdMgCxWEwGQKPRyAAYjUYZgGg0KgOQzWZlAAaDgwyAarWqDODg4EAGYH9/XwZge3tbBsDv98sA5PN5GYBoNCr7/f6e1WpVBhAIBGQAtre3ZQCrq6sygPHxcRmAarWqDODg4EAG4Pj4WAbg6OhIBmBtbU0GoFQqyQCUy2UZgHK5LAMQj8dlAAqFggxAKBSSRqNRBqBcLssAFItFGYB8Pi8DUCwWZQDK5bIMQLVazQHodDqpWq3KAPR6PRmAaDQqA1Aul2UAcrmcDECxWJQByOfzMgCFQkEGoFQqyQBEIhEZgGQyKQOQzWZlAAaDgQxAIBDQ/wGhUxMpCXlsSQAAAABJRU5ErkJggg==');
+    }
+
+    .date-divider {
+        text-align: center;
+        margin: 20px 0;
+        position: relative;
+    }
+
+    .date-divider::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 100%;
+        height: 1px;
+        background: #ccc;
+    }
+
+    .date-divider span {
+        background: #e5ddd5;
+        padding: 5px 15px;
+        border-radius: 15px;
+        font-size: 12px;
+        color: #666;
+        position: relative;
+        z-index: 1;
+    }
+
+    #messages {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #messages li {
+        max-width: 65%;
+        padding: 8px 12px;
+        border-radius: 7.5px;
+        position: relative;
+        word-wrap: break-word;
+        font-size: 14.2px;
+        line-height: 1.4;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #messages li .message-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        width: 100%;
+    }
+
+    #messages li .message-text {
+        flex: 1;
+        display: inline;
+    }
+
+    #messages li .delete-icon {
+        opacity: 0;
+        cursor: pointer;
+        color: #999;
+        font-size: 12px;
+        transition: opacity 0.2s;
+        flex-shrink: 0;
+        margin-top: 2px;
+        position: relative;
+        z-index: 10;
+    }
+
+    #messages li:hover .delete-icon {
+        opacity: 1;
+    }
+
+    #messages li.sent {
+        align-self: flex-end;
+        background: #dcf8c6;
+        border-top-right-radius: 0;
+    }
+
+    #messages li.sent::before {
+        content: '';
+        position: absolute;
+        right: -8px;
+        top: 0;
+        width: 0;
+        height: 0;
+        border-left: 8px solid #dcf8c6;
+        border-bottom: 8px solid transparent;
+    }
+
+    #messages li.received {
+        align-self: flex-start;
+        background: white;
+        border-top-left-radius: 0;
+    }
+
+    #messages li.received::before {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 0;
+        width: 0;
+        height: 0;
+        border-right: 8px solid white;
+        border-bottom: 8px solid transparent;
+    }
+
+    .message-time {
+        font-size: 11px;
+        color: #999;
+        float: right;
+        margin-left: 10px;
+        margin-top: 5px;
+    }
+
+    /* Delete Menu */
+    .delete-menu {
+        display: none;
+        position: fixed;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 1000;
+        min-width: 180px;
+    }
+
+    .delete-menu.show {
+        display: block;
+    }
+
+    .delete-menu-item {
+        padding: 12px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+
+    .delete-menu-item:hover {
+        background: #f5f5f5;
+    }
+
+    .delete-menu-item.delete-for-me {
+        color: #075e54;
+    }
+
+    .delete-menu-item.delete-for-everyone {
+        color: #e74c3c;
+    }
+
+    .delete-menu-item i {
+        margin-right: 8px;
+    }
+
+    /* Input Area */
+    .chat-input-container {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        background: #f0f0f0;
+        gap: 10px;
+    }
+
+    .emoji-btn, .attach-btn {
+        color: #666;
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    /* File Upload Menu */
+    .file-menu {
+        display: none;
+        position: fixed;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        z-index: 1000;
+        min-width: 180px;
+    }
+
+    .file-menu.show {
+        display: block;
+    }
+
+    .file-menu-item {
+        padding: 12px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+
+    .file-menu-item:hover {
+        background: #f5f5f5;
+    }
+
+    .file-menu-item i {
+        margin-right: 8px;
+        color: #075e54;
+    }
+
+    #txtMessage {
+        flex: 1;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 25px;
+        outline: none;
+        font-size: 15px;
+    }
+
+    .send-btn {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        border: none;
+        background: #075e54;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .send-btn:hover {
+        background: #059b8e;
+    }
+
+    .send-btn:active {
+        transform: scale(0.95);
+    }
+
+    /* Scrollbar Styling */
+    .chat-messages::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+        background: #e5ddd5;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+        background: #bbb;
+        border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    /* Download Button */
+    .download-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        background: #075e54;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 12px;
+        transition: background 0.2s;
+    }
+
+    .download-btn:hover {
+        background: #059b8e;
+    }
+
+</style>
+
+    <script>
+        const senderId = parseInt('@Context.Session.GetInt32("UserId")');
+        const receiverId = parseInt('@ViewBag.Id');
+        let connectionReady = false;
+        const messageStatusMap = {}; // Track message status by messageId
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chatHub")
+            .build();
+
+        connection.start()
+            .then(function () {
+                connectionReady = true;
+                connection.invoke("RegisterUser", senderId);
+                loadPastMessages();
+                // Mark messages as read when chat opens
+                connection.invoke("MarkMessagesAsRead", receiverId, senderId);
+            })
+            .catch(err => console.error("Connection failed: ", err));
+
+    async function loadPastMessages() {
+        try {
+            const response = await fetch(`/Chat/GetMessages?receiverId=${receiverId}`);
+            const messages = await response.json();
+            messages.forEach(msg => {
+                // Store status for sent messages
+                if (msg.senderId === senderId) {
+                    messageStatusMap[msg.messageId] = {
+                        isDelivered: msg.isDelivered,
+                        isRead: msg.isRead
+                    };
+                }
+                appendMessage(msg.senderId, msg.text, msg.sentAt, msg.messageId, msg.fileType, msg.fileName, msg.isDelivered, msg.isRead);
+            });
+            scrollToBottom();
+        } catch (err) {
+            console.error("Failed to load past messages: ", err);
+        }
+    }
+
+    function sendMessage() {
+        if (!connectionReady) { alert("Connection not ready"); return; }
+        if (isNaN(senderId) || isNaN(receiverId)) { alert("Invalid user ID"); return; }
+
+        const messageInput = document.getElementById("txtMessage");
+        const message = messageInput.value;
+        if (!message.trim()) return;
+
+        connection.invoke("SendMessage", senderId, receiverId, message)
+            .then(() => {
+                messageInput.value = "";
+                messageInput.focus();
+            })
+            .catch(err => console.error("Send failed: ", err));
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    }
+
+    let currentDeleteMenu = null;
+    const messageStore = {};
+
+    function appendMessage(sId, message, timestamp, msgId, fileType, fileName, isDelivered, isRead) {
+        const messagesList = document.getElementById("messages");
+        const li = document.createElement("li");
+        li.className = (sId === senderId) ? 'sent' : 'received';
+        li.dataset.messageId = msgId || Date.now();
+        const isSent = (sId === senderId);
+
+        const time = timestamp ? new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        // Determine tick status for sent messages
+        let tickHtml = '';
+        if (isSent) {
+            const status = messageStatusMap[li.dataset.messageId] || { isDelivered: isDelivered || false, isRead: isRead || false };
+            if (status.isRead) {
+                tickHtml = '<span class="message-status tick-read"><i class="fas fa-check-double"></i></span>';
+            } else if (status.isDelivered) {
+                tickHtml = '<span class="message-status tick-delivered"><i class="fas fa-check-double"></i></span>';
+            } else {
+                tickHtml = '<span class="message-status tick-sent"><i class="fas fa-check"></i></span>';
+            }
+        }
+
+        const deleteIconHtml = (sId === senderId || fileType) ? `
+            <i class="fas fa-ellipsis-v delete-icon" onclick="showDeleteMenu(event, ${li.dataset.messageId}, ${sId}, this, '${fileType || ''}', '${fileName || ''}', '${message}')"></i>
+        ` : '';
+
+        let messageContent = '';
+        if (fileType) {
+            if (fileType === 'image') {
+                messageContent = `
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                        <img src="${message}" alt="${fileName || 'Image'}" style="max-width: 250px; border-radius: 5px;" />
+                    </div>`;
+            } else if (fileType === 'video') {
+                messageContent = `
+                    <div>
+                        <video controls style="max-width: 250px; border-radius: 5px;"><source src="${message}" type="video/mp4">Your browser does not support video.</video>
+                    </div>`;
+            } else if (fileType === 'document') {
+                messageContent = `
+                    <div>
+                        <a href="${message}" target="_blank" style="color: #075e54; text-decoration: none;"><i class="fas fa-file-alt"></i> ${fileName || 'Document'}</a>
+                    </div>`;
+            }
+        } else {
+            messageContent = `<span class="message-text">${message}</span>`;
+        }
+
+        li.innerHTML = `
+            <div class="message-content">
+                ${messageContent}
+                ${deleteIconHtml}
+            </div>
+            <span class="message-time">${time}${tickHtml}</span>
+        `;
+
+        messagesList.appendChild(li);
+
+        // Append delete menu to body instead of li to prevent li from expanding
+        if (sId === senderId || fileType) {
+            const menuDiv = document.createElement("div");
+            menuDiv.className = "delete-menu";
+            menuDiv.id = `menu-${li.dataset.messageId}`;
+            
+            let menuItems = '';
+            if (sId === senderId) {
+                menuItems += `
+                    <div class="delete-menu-item delete-for-me" onclick="deleteForMe(${li.dataset.messageId})">
+                        <i class="fas fa-user"></i> Delete for me
+                    </div>
+                    <div class="delete-menu-item delete-for-everyone" onclick="deleteForEveryone(${li.dataset.messageId})">
+                        <i class="fas fa-users"></i> Delete for everyone
+                    </div>`;
+            }
+            if (fileType && !isSent) {
+                menuItems += `
+                    <div class="delete-menu-item" onclick="downloadFile('${message}', '${fileName || fileType}')">
+                        <i class="fas fa-download"></i> Download
+                    </div>`;
+            }
+            
+            menuDiv.innerHTML = menuItems;
+            document.body.appendChild(menuDiv);
+        }
+
+        scrollToBottom();
+    }
+
+    function showDeleteMenu(event, messageId, senderIdOfMessage, icon, fileType, fileName, messageUrl) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Close any existing menu
+        closeDeleteMenu();
+
+        const menu = document.getElementById(`menu-${messageId}`);
+        if (menu) {
+            const rect = icon.getBoundingClientRect();
+
+            // Show menu temporarily to calculate dimensions
+            menu.style.visibility = 'hidden';
+            menu.classList.add('show');
+
+            const menuWidth = menu.offsetWidth;
+            const menuHeight = menu.offsetHeight;
+
+            // Position for fixed positioning (viewport-relative)
+            let left = rect.right - menuWidth; // Align right edge of menu to right edge of icon
+            let top = rect.bottom + 5; // Position below icon
+
+            // Keep menu within viewport
+            if (left < 0) left = 5;
+            if (top + menuHeight > window.innerHeight) {
+                top = rect.top - menuHeight - 5; // Position above if not enough space below
+            }
+
+            menu.style.left = `${left}px`;
+            menu.style.top = `${top}px`;
+            menu.style.visibility = 'visible';
+
+            currentDeleteMenu = menu;
+        }
+    }
+
+    function closeDeleteMenu() {
+        if (currentDeleteMenu) {
+            currentDeleteMenu.classList.remove('show');
+            currentDeleteMenu.style.visibility = 'hidden';
+            currentDeleteMenu = null;
+        }
+    }
+
+    function downloadFile(url, fileName) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        closeDeleteMenu();
+    }
+
+       async function deleteForMe(messageId) {
+        try {
+            const response = await fetch(
+                `/Chat/DeleteForMe?messageid=${messageId}`,
+                {
+                    method: 'POST'
+                });
+
+            if (response.ok) {
+                const li = document.querySelector(
+                    `li[data-message-id="${messageId}"]`);
+
+                const menu = document.getElementById(
+                    `menu-${messageId}`);
+
+                if (li) {
+                    li.remove();
+                }
+
+                if (menu) {
+                    menu.remove();
+                }
+
+                closeDeleteMenu();
+            }
+            else {
+                console.log("Delete failed");
+            }
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+      async function deleteForEveryone(messageId) {
+        try {
+            const response = await fetch(
+                `/Chat/DeleteForEveryOne?messageid=${messageId}`,
+                {
+                    method: 'POST'
+                });
+
+            if (response.ok) {
+                const li = document.querySelector(
+                    `li[data-message-id="${messageId}"]`);
+
+                const menu = document.getElementById(
+                    `menu-${messageId}`);
+
+                if (li) {
+                    li.remove();
+                }
+
+                if (menu) {
+                    menu.remove();
+                }
+
+                closeDeleteMenu();
+            }
+            else {
+                console.log("Delete failed");
+            }
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+    // Close menu when clicking outside
+    document.addEventListener('click', function(event) {
+        if (currentDeleteMenu && !currentDeleteMenu.contains(event.target)) {
+            closeDeleteMenu();
+        }
+    });
+
+    function scrollToBottom() {
+        const container = document.getElementById("messagesContainer");
+        container.scrollTop = container.scrollHeight;
+    }
+
+    connection.on("ReceiveMessage", function(sId, message, msgId, fileType, fileName) {
+        appendMessage(sId, message, null, msgId, fileType, fileName);
+        // If current user is receiver, mark message as read
+        if (sId !== senderId && connectionReady) {
+            connection.invoke("MarkMessagesAsRead", sId, senderId);
+        }
+    });
+
+    connection.on("ReceiveFileMessage", function(sId, filePath, msgId, fileType, fileName) {
+        appendMessage(sId, filePath, null, msgId, fileType, fileName);
+        // If current user is receiver, mark message as read
+        if (sId !== senderId && connectionReady) {
+            connection.invoke("MarkMessagesAsRead", sId, senderId);
+        }
+    });
+
+    // Handle message delivered status
+    connection.on("MessageDelivered", function(msgId) {
+        messageStatusMap[msgId] = { isDelivered: true, isRead: false };
+        updateMessageTick(msgId);
+    });
+
+    // Handle message read status
+    connection.on("MessageRead", function(fromUserId) {
+        // Update all messages sent to this user as read
+        if (fromUserId === receiverId) {
+            for (const msgId in messageStatusMap) {
+                messageStatusMap[msgId] = { isDelivered: true, isRead: true };
+                updateMessageTick(msgId);
+            }
+        }
+    });
+
+    function updateMessageTick(msgId) {
+        const li = document.querySelector(`li[data-message-id="${msgId}"]`);
+        if (!li) return;
+
+        const status = messageStatusMap[msgId];
+        if (!status) return;
+
+        const timeSpan = li.querySelector('.message-time');
+        if (!timeSpan) return;
+
+        let tickHtml = '';
+        if (status.isRead) {
+            tickHtml = '<span class="message-status tick-read"><i class="fas fa-check-double"></i></span>';
+        } else if (status.isDelivered) {
+            tickHtml = '<span class="message-status tick-delivered"><i class="fas fa-check-double"></i></span>';
+        } else {
+            tickHtml = '<span class="message-status tick-sent"><i class="fas fa-check"></i></span>';
+        }
+
+        // Remove existing tick and add new one
+        const existingTick = timeSpan.querySelector('.message-status');
+        if (existingTick) {
+            existingTick.remove();
+        }
+        timeSpan.insertAdjacentHTML('beforeend', tickHtml);
+    }
+
+    // Handle user status changes in real-time
+    connection.on("UserStatusChanged", function(userId, isOnline, lastSeen) {
+        if (userId === receiverId) {
+            updateUserStatus(isOnline, lastSeen);
+        }
+    });
+
+    // Handle status response
+    connection.on("UserStatusResponse", function(userId, isOnline, lastSeen) {
+        if (userId === receiverId) {
+            updateUserStatus(isOnline, lastSeen);
+        }
+    });
+
+    function updateUserStatus(isOnline, lastSeen) {
+        const statusElement = document.getElementById("userStatus");
+        if (isOnline) {
+            statusElement.innerHTML = '<span style="color: #25D366;">Online</span>';
+        } else if (lastSeen) {
+            const time = new Date(lastSeen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            statusElement.innerHTML = '<span>last seen ' + time + '</span>';
+        }
+    }
+
+    // Request current user status when page loads
+    if (connectionReady) {
+        connection.invoke("GetUserStatus", receiverId);
+    }
+
+    // Poll for status every 10 seconds
+    setInterval(function() {
+        if (connectionReady) {
+            connection.invoke("GetUserStatus", receiverId);
+        }
+    }, 10000);
+
+    // File Upload Functions
+    let currentFileMenu = null;
+
+    function toggleFileMenu(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const menu = document.getElementById('fileMenu');
+
+        if (menu.classList.contains('show')) {
+            closeFileMenu();
+            return;
+        }
+
+        closeFileMenu();
+
+        const rect = event.target.getBoundingClientRect();
+        const menuHeight = 150; // Approximate height
+
+        let left = rect.left;
+        let top = rect.top - menuHeight - 10;
+
+        if (top < 0) {
+            top = rect.bottom + 10;
+        }
+
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+        menu.classList.add('show');
+        currentFileMenu = menu;
+    }
+
+    function closeFileMenu() {
+        if (currentFileMenu) {
+            currentFileMenu.classList.remove('show');
+            currentFileMenu = null;
+        }
+    }
+
+    function selectFile(type) {
+        closeFileMenu();
+        const inputMap = {
+            'image': 'imageInput',
+            'video': 'videoInput',
+            'document': 'documentInput'
+        };
+        document.getElementById(inputMap[type]).click();
+    }
+
+    async function uploadFile(input, fileType) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('senderId', senderId);
+        formData.append('receiverId', receiverId);
+        formData.append('fileType', fileType);
+
+        try {
+            const response = await fetch('/Chat/UploadFile', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                connection.invoke("SendFileMessage", senderId, receiverId, result.filePath, fileType, file.name);
+            } else {
+                const errorText = await response.text();
+                console.error('Upload failed:', response.status, errorText);
+                alert('File upload failed: ' + response.status);
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('File upload failed');
+        }
+
+        input.value = '';
+    }
+
+    // Close menus when clicking outside
+    document.addEventListener('click', function(event) {
+        if (currentFileMenu && !currentFileMenu.contains(event.target) && !event.target.classList.contains('attach-btn')) {
+            closeFileMenu();
+        }
+    });
+
+    // Modify appendMessage to handle file messages
+    const originalAppendMessage = appendMessage;
+</script>
